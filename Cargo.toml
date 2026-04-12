@@ -1,0 +1,9 @@
+[package]
+name = "KFTun"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
