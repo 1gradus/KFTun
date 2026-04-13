@@ -24,4 +24,7 @@ popd
 if "%1x" == "--runx" (
     echo ----------------------------------------
     call %PackageDir%\run.cmd
+) else if "%1x" == "--run-devx" (
+    echo ----------------------------------------
+    call etc\run-dev.cmd
 )
