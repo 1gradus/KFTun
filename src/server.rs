@@ -42,7 +42,9 @@ pub fn server(cfg: ServerCfg) -> ! {
 
     println!("ERROR: Something went wrong. Restart is required.");
 
-    loop {}
+    loop {
+        std::thread::sleep(Duration::MAX);
+    }
 }
 
 const BUF_SIZE: usize = 64*1024;
