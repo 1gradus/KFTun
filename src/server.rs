@@ -8,6 +8,7 @@ use std::net::{
 };
 use std::time::{
     Duration,
+    Instant,
 };
 use std::sync::mpsc::{
     channel,
@@ -49,12 +50,14 @@ pub fn server(cfg: ServerCfg) -> ! {
 
 const BUF_SIZE: usize = 64*1024;
 const TIMEOUT_SECS: Duration = Duration::from_secs(10);
+const CLEANUP_PERIOD_SECS: Duration = Duration::from_secs(TIMEOUT_SECS.as_secs() / 2);
 
 fn listen(client: UdpSocket, server_addr: SocketAddr) {
     let mut buf = vec![0u8; BUF_SIZE];
     let mut peers: Map<SocketAddr, UdpSocket> = Map::new();
+    let mut last_cleanup = Instant::now();
     let (tx, rx) = channel();
-    client.set_read_timeout(Some(TIMEOUT_SECS / 2)).unwrap();
+    client.set_read_timeout(Some(CLEANUP_PERIOD_SECS)).unwrap();
     loop {
         match client.recv_from(&mut buf) {
             Ok((n, peer)) => {
@@ -118,9 +121,15 @@ fn listen(client: UdpSocket, server_addr: SocketAddr) {
                 }
             }
         }
-        for peer in rx.try_iter() {
-            println!("TIMED OUT {}", peer);
-            peers.remove(&peer);
+
+        let time = Instant::now();
+
+        if time.duration_since(last_cleanup) >= CLEANUP_PERIOD_SECS {
+            for peer in rx.try_iter() {
+                println!("TIMED OUT {}", peer);
+                peers.remove(&peer);
+            }
+            last_cleanup = time;
         }
     }
 }
