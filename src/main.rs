@@ -13,19 +13,26 @@ use server::{
 };
 
 fn main() -> ExitCode {
-    let [listen_addr, target_addr] = match command_line() {
+    let CommandLine {
+        addrs: [listen_addr, target_addr],
+        nonblocking,
+    } = match command_line() {
         Ok(__) => __,
         Err(e) => return e,
     };
     server(ServerCfg {
         listen_addr,
         target_addr,
+        nonblocking,
     })
 }
 
 const HELP_MESSAGE: &str = concat![
     "USAGE:\r\n",
-    "    server <listen-address> <target-address>\r\n",
+    "    server [OPTIONS] <listen-address> <target-address>\r\n",
+    "\r\n",
+    "OPTIONS:\r\n",
+    "    --nonblocking     Use nonblocking sockets (will consume more CPU).\r\n",
     "\r\n",
     "PARAMETERS:\r\n",
     "    <listen-address>  An address to which the proxy server will bind.\r\n",
@@ -39,16 +46,24 @@ const HELP_MESSAGE: &str = concat![
     "        server 100.1.2.3:7707 12.34.56.78:7707",
 ];
 
-fn command_line() -> Result<[SocketAddr; 2], ExitCode> {
+struct CommandLine {
+    addrs: [SocketAddr; 2],
+    nonblocking: bool,
+}
+
+fn command_line() -> Result<CommandLine, ExitCode> {
     let mut args = std::env::args();
     let _ = args.next();
 
     let mut listen_addr = None;
     let mut target_addr = None;
+    let mut nonblocking = false;
     let mut error = false;
 
     for arg in args {
-        if listen_addr.is_none() {
+        if arg == "--nonblocking" {
+            nonblocking = true;
+        } else if listen_addr.is_none() {
             listen_addr = arg.parse().map_err(|_| {
                 println!("ERROR: '{}' is not an acceptable listen address", arg);
                 error = true;
@@ -76,8 +91,11 @@ fn command_line() -> Result<[SocketAddr; 2], ExitCode> {
         return Err(ExitCode::SUCCESS);
     };
 
-    Ok([
-        listen_addr,
-        target_addr,
-    ])
+    Ok(CommandLine {
+        addrs: [
+            listen_addr,
+            target_addr,
+        ],
+        nonblocking,
+    })
 }
