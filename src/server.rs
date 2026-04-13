@@ -70,7 +70,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr) {
                     continue;
                 }
 
-                println!("INCOMING {}", peer);
+                println!("INCOMING {} -> {}", peer, client.local_addr().unwrap().port());
 
                 let server = match UdpSocket::bind(SocketAddr::from(([0; 4], 0))) {
                     Ok(__) => __,
