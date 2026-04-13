@@ -48,13 +48,13 @@ pub fn server(cfg: ServerCfg) -> ! {
 }
 
 const BUF_SIZE: usize = 64*1024;
-const RECV_TIMEOUT_SECS: Duration = Duration::from_secs(10);
+const TIMEOUT_SECS: Duration = Duration::from_secs(10);
 
 fn listen(client: UdpSocket, server_addr: SocketAddr) {
     let mut buf = vec![0u8; BUF_SIZE];
     let mut peers: Map<SocketAddr, UdpSocket> = Map::new();
     let (tx, rx) = channel();
-    client.set_read_timeout(Some(RECV_TIMEOUT_SECS / 2)).unwrap();
+    client.set_read_timeout(Some(TIMEOUT_SECS / 2)).unwrap();
     loop {
         match client.recv_from(&mut buf) {
             Ok((n, peer)) => {
@@ -90,7 +90,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr) {
                 let tx = tx.clone();
                 std::thread::spawn(move || {
                     let mut buf = vec![0u8; BUF_SIZE];
-                    server.set_read_timeout(Some(RECV_TIMEOUT_SECS)).unwrap();
+                    server.set_read_timeout(Some(TIMEOUT_SECS)).unwrap();
                     loop {
                         match server.recv(&mut buf) {
                             Ok(n) => {
