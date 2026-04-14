@@ -145,6 +145,9 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
             }
             Err(e) => {
                 if e.kind() != io::ErrorKind::WouldBlock {
+                    /*
+                        TODO: ConnectionReset.
+                    */
                     if e.kind() != io::ErrorKind::TimedOut && e.kind() != io::ErrorKind::ConnectionReset {
                         println!("ERROR: proxy<-client recv: {}", e);
                     }
