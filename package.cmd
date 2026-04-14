@@ -18,7 +18,21 @@ copy /Y target\release\*.exe %PackageDir%\
 copy /Y etc\run.cmd %PackageDir%\
 
 pushd package
-zip -r KFTun.zip KFTun
+    if not exist KFTun.zip (
+        where /Q 7z.exe
+        if not ERRORLEVEL 1 (
+            7z.exe a -tzip -sse -ssp KFTun.zip KFTun
+        )
+    )
+    if not exist KFTun.zip (
+        where /Q zip.exe
+        if not ERRORLEVEL 1 (
+            zip.exe -r KFTun.zip KFTun
+        )
+    )
+    if not exist KFTun.zip (
+        echo "Not creating the archive. No archivers available."
+    )
 popd
 
 if "%1x" == "--runx" (
