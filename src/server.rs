@@ -74,11 +74,16 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
         match client.recv_from(&mut buf) {
             Ok((n, peer)) => {
                 let data = &buf[..n];
+                let send_data = |socket: &UdpSocket| {
+                    if let Err(e) = socket.send(data) {
+                        println!("ERROR [{}]: proxy-server send: {}", peer, e);
+                        return false;
+                    }
+                    true
+                };
 
                 if let Some(server) = peers.get(&peer) {
-                    if let Err(e) = server.send(data) {
-                        println!("ERROR [{}]: proxy-server send: {}", peer, e);
-                    }
+                    send_data(server);
                     continue;
                 }
 
@@ -94,8 +99,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
 
                 server.connect(server_addr).unwrap();
 
-                if let Err(e) = server.send(data) {
-                    println!("ERROR [{}]: proxy-server send: {}", peer, e);
+                if !send_data(&server) {
                     continue;
                 }
 
