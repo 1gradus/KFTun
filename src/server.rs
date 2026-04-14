@@ -76,7 +76,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                 let data = &buf[..n];
                 let send_data = |socket: &UdpSocket| {
                     if let Err(e) = socket.send(data) {
-                        println!("ERROR [{}]: proxy-server send: {}", peer, e);
+                        println!("ERROR [{}]: proxy->server send: {}", peer, e);
                         return false;
                     }
                     true
@@ -92,7 +92,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                 let server = match UdpSocket::bind(SocketAddr::from(([0; 4], 0))) {
                     Ok(__) => __,
                     Err(e) => {
-                        println!("ERROR [{}]: could not open a proxy-server socket: {}", peer, e);
+                        println!("ERROR [{}]: could not open a proxy<->server socket: {}", peer, e);
                         continue;
                     }
                 };
@@ -119,7 +119,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                             Ok(n) => {
                                 let data = &buf[..n];
                                 if let Err(e) = client.send_to(data, peer) {
-                                    println!("ERROR [{}]: proxy-client send: {}", peer, e);
+                                    println!("ERROR [{}]: proxy->client send: {}", peer, e);
                                 }
                             }
                             Err(e) => {
@@ -130,7 +130,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                                         }
                                         break;
                                     }
-                                    println!("ERROR [{}]: server-proxy recv: {}", peer, e);
+                                    println!("ERROR [{}]: proxy<-server recv: {}", peer, e);
                                 }
                             }
                         }
@@ -140,7 +140,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
             Err(e) => {
                 if e.kind() != io::ErrorKind::WouldBlock {
                     if e.kind() != io::ErrorKind::TimedOut && e.kind() != io::ErrorKind::ConnectionReset {
-                        println!("ERROR: client-proxy recv: {}", e);
+                        println!("ERROR: proxy<-client recv: {}", e);
                     }
                 }
             }
