@@ -98,6 +98,8 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                 };
 
                 server.connect(server_addr).unwrap();
+                server.set_nonblocking(nonblocking).unwrap();
+                server.set_read_timeout(Some(TIMEOUT_SECS)).unwrap();
 
                 /*
                     TODO: Retry on failure?
@@ -112,8 +114,6 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                 let tx = tx.clone();
                 std::thread::spawn(move || {
                     let mut buf = vec![0u8; BUF_SIZE];
-                    server.set_nonblocking(nonblocking).unwrap();
-                    server.set_read_timeout(Some(TIMEOUT_SECS)).unwrap();
                     loop {
                         match server.recv(&mut buf) {
                             Ok(n) => {
