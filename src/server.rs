@@ -99,6 +99,9 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
 
                 server.connect(server_addr).unwrap();
 
+                /*
+                    TODO: Retry on failure?
+                */
                 if !send_data(&server) {
                     continue;
                 }
