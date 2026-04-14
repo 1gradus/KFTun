@@ -59,6 +59,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
     let mut peers: Map<SocketAddr, UdpSocket> = Map::new();
     let mut last_cleanup = Instant::now();
     let (tx, rx) = channel();
+    let local_port = client.local_addr().unwrap().port();
     /*
         TODO: spin_loop()?
     */
@@ -81,7 +82,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                     continue;
                 }
 
-                println!("INCOMING {} -> {}", peer, client.local_addr().unwrap().port());
+                println!("INCOMING {} -> {}", peer, local_port);
 
                 let server = match UdpSocket::bind(SocketAddr::from(([0; 4], 0))) {
                     Ok(__) => __,
