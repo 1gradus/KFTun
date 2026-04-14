@@ -32,16 +32,22 @@ pub fn server(cfg: ServerCfg) -> ! {
         nonblocking,
     } = cfg;
 
-    let port1 = UdpSocket::bind(listen_addr).unwrap();
-    let port2 = UdpSocket::bind((listen_addr.ip(), listen_addr.port()+1)).unwrap();
+    let port1 = UdpSocket::bind(listen_addr).map_err(|e| {
+        println!("ERROR: could not open a proxy<->client port {}: {}", listen_addr.port(), e);
+    }).ok();
+    let port2 = UdpSocket::bind((listen_addr.ip(), listen_addr.port()+1)).map_err(|e| {
+        println!("ERROR: could not open a proxy<->client port {}: {}", listen_addr.port()+1, e);
+    }).ok();
 
-    println!("Server proxy for {}", target_addr);
-    println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
+    if let (Some(port1), Some(port2)) = (port1, port2) {
+        println!("Server proxy for {}", target_addr);
+        println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
 
-    std::thread::scope(|s| {
-        s.spawn(|| listen(port1, target_addr, nonblocking));
-        s.spawn(|| listen(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking));
-    });
+        std::thread::scope(|s| {
+            s.spawn(|| listen(port1, target_addr, nonblocking));
+            s.spawn(|| listen(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking));
+        });
+    }
 
     println!("ERROR: Something went wrong. Restart is required.");
 
