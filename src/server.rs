@@ -191,6 +191,9 @@ fn buf_insert_name_suffix(buf: &mut [u8], len: &mut usize) {
         let e = s + SUFFIX.len();
         buf.copy_within(s..*len, e);
         buf[s..e].copy_from_slice(SUFFIX);
+        /*
+            TODO: Addition may overflow.
+        */
         buf[OFFSET_TO_NAME] += SUFFIX.len() as u8;
         *len += SUFFIX.len();
     }
