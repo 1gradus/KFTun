@@ -44,8 +44,8 @@ pub fn server(cfg: ServerCfg) -> ! {
         println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
 
         std::thread::scope(|s| {
-            s.spawn(|| listen(port1, target_addr, nonblocking));
-            s.spawn(|| listen(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking));
+            s.spawn(|| listen(port1, target_addr, nonblocking, false));
+            s.spawn(|| listen(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking, true));
         });
     }
 
@@ -60,7 +60,11 @@ const BUF_SIZE: usize = 64*1024;
 const TIMEOUT_SECS: Duration = Duration::from_secs(10);
 const CLEANUP_PERIOD_SECS: Duration = Duration::from_secs(TIMEOUT_SECS.as_secs() / 2);
 
-fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
+const PREFIX: &[u8] = b"[PROXY] ";
+const OFFSET_TO_PORT: usize = 10;
+const OFFSET_TO_NAME: usize = 18;
+
+fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool, query: bool) {
     let mut buf = vec![0u8; BUF_SIZE];
     let mut peers: Map<SocketAddr, UdpSocket> = Map::new();
     let mut last_cleanup = Instant::now();
@@ -122,7 +126,11 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
                     let mut buf = vec![0u8; BUF_SIZE];
                     loop {
                         match server.recv(&mut buf) {
-                            Ok(n) => {
+                            Ok(mut n) => {
+                                if query && matches!(&buf[..n], [0x80, 0, 0, 0, 0, ..]) {
+                                    buf_correct_port(&mut buf, local_port-1);
+                                    buf_insert_name_prefix(&mut buf, &mut n);
+                                }
                                 let data = &buf[..n];
                                 if let Err(e) = client.send_to(data, peer) {
                                     println!("ERROR [{}]: proxy->client send: {}", peer, e);
@@ -164,5 +172,20 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
             }
             last_cleanup = time;
         }
+    }
+}
+
+fn buf_correct_port(buf: &mut [u8], port: u16) {
+    buf[OFFSET_TO_PORT..][..2].copy_from_slice(&port.to_le_bytes());
+}
+
+fn buf_insert_name_prefix(buf: &mut [u8], len: &mut usize) {
+    if PREFIX.len() <= buf.len() - *len {
+        let s = OFFSET_TO_NAME+1;
+        let e = s+PREFIX.len();
+        buf.copy_within(s..*len, e);
+        buf[s..e].copy_from_slice(PREFIX);
+        buf[OFFSET_TO_NAME] += PREFIX.len() as u8;
+        *len += PREFIX.len();
     }
 }
