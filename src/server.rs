@@ -167,7 +167,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool, query: 
 
         if time.duration_since(last_cleanup) >= CLEANUP_PERIOD_SECS {
             for peer in rx.try_iter() {
-                println!("TIMED OUT {}", peer);
+                println!("TIMEDOUT {}", peer);
                 peers.remove(&peer);
             }
             last_cleanup = time;
