@@ -1,5 +1,5 @@
 ::
-:: package.cmd [-win7] [--run|--run-dev]
+:: package.cmd [-win7] [-dev] [-run]
 ::
 @echo off
 @setlocal
@@ -10,14 +10,18 @@ if "%1x" == "-win7x" (
     set PackageName=KFTun-win7
     set BuildOpts=--target x86_64-win7-windows-msvc -Zunstable-options -Zbuild-std
     set TargetDir=target\x86_64-win7-windows-msvc\release
-    set RunDevOpts=-win7
     set RUSTFLAGS=
     shift /1
 ) else (
     set PackageName=KFTun
     set BuildOpts=
     set TargetDir=target\release
-    set RunDevOpts=
+)
+if "%1x" == "-devx" (
+    set PackageName=%PackageName%-dev
+    set RunCmd=run-dev.cmd
+) else (
+    set RunCmd=run.cmd
 )
 set PackageDir=.\package\%PackageName%
 
@@ -31,7 +35,7 @@ rmdir /S /Q %PackageDir%
 mkdir %PackageDir%
 
 copy /Y %TargetDir%\*.exe %PackageDir%\
-copy /Y etc\run.cmd %PackageDir%\
+copy /Y etc\%RunCmd% %PackageDir%\run.cmd
 
 pushd package
     if not exist %PackageName%.zip (
@@ -51,10 +55,7 @@ pushd package
     )
 popd
 
-if "%1x" == "--runx" (
+if "%1x" == "-runx" (
     echo ----------------------------------------
-    call %PackageDir%\run.cmd
-) else if "%1x" == "--run-devx" (
-    echo ----------------------------------------
-    call etc\run-dev.cmd %RunDevOpts%
+    call %PackageDir%\%RunCmd%
 )
