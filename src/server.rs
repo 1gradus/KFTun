@@ -65,11 +65,10 @@ const OFFSET_TO_PORT: usize = 10;
 const OFFSET_TO_NAME: usize = 18;
 
 fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
-    let mut buf = vec![0u8; BUF_SIZE];
     let mut clients: Map<SocketAddr, UdpSocket> = Map::new();
     let mut last_cleanup = Instant::now();
     let (tx, rx) = channel();
-    let local_port = client.local_addr().unwrap().port();
+
     /*
         TODO: spin_loop()?
     */
@@ -80,6 +79,9 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
         kind WouldBlock, but Windows may return TimedOut.
     */
     client.set_read_timeout(Some(CLEANUP_PERIOD_SECS)).unwrap();
+
+    let mut buf = vec![0u8; BUF_SIZE];
+    let local_port = client.local_addr().unwrap().port();
     loop {
         match client.recv_from(&mut buf) {
             Ok((n, client_addr)) => 'l: {
