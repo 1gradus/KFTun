@@ -20,6 +20,7 @@ if "%1x" == "-win7x" (
 if "%1x" == "-devx" (
     set PackageName=%PackageName%-dev
     set RunCmd=run-dev.cmd
+    shift /1
 ) else (
     set RunCmd=run.cmd
 )
@@ -57,5 +58,5 @@ popd
 
 if "%1x" == "-runx" (
     echo ----------------------------------------
-    call %PackageDir%\%RunCmd%
+    call %PackageDir%\run.cmd
 )
