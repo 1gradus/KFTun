@@ -82,7 +82,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
     client.set_read_timeout(Some(CLEANUP_PERIOD_SECS)).unwrap();
     loop {
         match client.recv_from(&mut buf) {
-            Ok((n, client_addr)) => {
+            Ok((n, client_addr)) => 'l: {
                 let data = &buf[..n];
                 let send_data = |socket: &UdpSocket| {
                     if let Err(e) = socket.send(data) {
@@ -94,7 +94,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
 
                 if let Some(server) = clients.get(&client_addr) {
                     send_data(server);
-                    continue;
+                    break 'l;
                 }
 
                 println!("INCOMING {} -> {}", client_addr, local_port);
@@ -103,7 +103,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                     Ok(__) => __,
                     Err(e) => {
                         println!("ERROR [{}]: could not open a proxy<->server socket: {}", client_addr, e);
-                        continue;
+                        break 'l;
                     }
                 };
 
@@ -115,7 +115,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                     TODO: Retry on failure?
                 */
                 if !send_data(&server) {
-                    continue;
+                    break 'l;
                 }
 
                 clients.insert(client_addr, server.try_clone().unwrap());
@@ -139,9 +139,6 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                             Err(e) => {
                                 if e.kind() != io::ErrorKind::WouldBlock {
                                     if e.kind() == io::ErrorKind::TimedOut {
-                                        /*
-                                            TODO: Sometimes peers don't get timed out.
-                                        */
                                         if let Err(e) = tx.send(client_addr) {
                                             println!("ERROR [{}]: could not send a timed out notification: {}", client_addr, e);
                                         }
