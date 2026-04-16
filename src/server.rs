@@ -66,7 +66,7 @@ const OFFSET_TO_NAME: usize = 18;
 
 fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
     let mut buf = vec![0u8; BUF_SIZE];
-    let mut peers: Map<SocketAddr, UdpSocket> = Map::new();
+    let mut clients: Map<SocketAddr, UdpSocket> = Map::new();
     let mut last_cleanup = Instant::now();
     let (tx, rx) = channel();
     let local_port = client.local_addr().unwrap().port();
@@ -82,27 +82,27 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
     client.set_read_timeout(Some(CLEANUP_PERIOD_SECS)).unwrap();
     loop {
         match client.recv_from(&mut buf) {
-            Ok((n, peer)) => {
+            Ok((n, client_addr)) => {
                 let data = &buf[..n];
                 let send_data = |socket: &UdpSocket| {
                     if let Err(e) = socket.send(data) {
-                        println!("ERROR [{}]: proxy->server send: {}", peer, e);
+                        println!("ERROR [{}]: proxy->server send: {}", client_addr, e);
                         return false;
                     }
                     true
                 };
 
-                if let Some(server) = peers.get(&peer) {
+                if let Some(server) = clients.get(&client_addr) {
                     send_data(server);
                     continue;
                 }
 
-                println!("INCOMING {} -> {}", peer, local_port);
+                println!("INCOMING {} -> {}", client_addr, local_port);
 
                 let server = match UdpSocket::bind(SocketAddr::from(([0; 4], 0))) {
                     Ok(__) => __,
                     Err(e) => {
-                        println!("ERROR [{}]: could not open a proxy<->server socket: {}", peer, e);
+                        println!("ERROR [{}]: could not open a proxy<->server socket: {}", client_addr, e);
                         continue;
                     }
                 };
@@ -118,7 +118,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                     continue;
                 }
 
-                peers.insert(peer, server.try_clone().unwrap());
+                clients.insert(client_addr, server.try_clone().unwrap());
 
                 let client = client.try_clone().unwrap();
                 let tx = tx.clone();
@@ -132,8 +132,8 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                                     buf_insert_name_suffix(&mut buf, &mut n);
                                 }
                                 let data = &buf[..n];
-                                if let Err(e) = client.send_to(data, peer) {
-                                    println!("ERROR [{}]: proxy->client send: {}", peer, e);
+                                if let Err(e) = client.send_to(data, client_addr) {
+                                    println!("ERROR [{}]: proxy->client send: {}", client_addr, e);
                                 }
                             }
                             Err(e) => {
@@ -142,12 +142,12 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                                         /*
                                             TODO: Sometimes peers don't get timed out.
                                         */
-                                        if let Err(e) = tx.send(peer) {
-                                            println!("ERROR [{}]: could not send a timed out notification: {}", peer, e);
+                                        if let Err(e) = tx.send(client_addr) {
+                                            println!("ERROR [{}]: could not send a timed out notification: {}", client_addr, e);
                                         }
                                         break;
                                     }
-                                    println!("ERROR [{}]: proxy<-server recv: {}", peer, e);
+                                    println!("ERROR [{}]: proxy<-server recv: {}", client_addr, e);
                                 }
                             }
                         }
@@ -169,9 +169,9 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
         let time = Instant::now();
 
         if time.duration_since(last_cleanup) >= CLEANUP_PERIOD_SECS {
-            for peer in rx.try_iter() {
-                println!("TIMEDOUT {}", peer);
-                peers.remove(&peer);
+            for client_addr in rx.try_iter() {
+                println!("TIMEDOUT {}", client_addr);
+                clients.remove(&client_addr);
             }
             last_cleanup = time;
         }
