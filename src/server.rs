@@ -139,6 +139,9 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool, query: 
                             Err(e) => {
                                 if e.kind() != io::ErrorKind::WouldBlock {
                                     if e.kind() == io::ErrorKind::TimedOut {
+                                        /*
+                                            TODO: Sometimes peers don't get timed out.
+                                        */
                                         if let Err(e) = tx.send(peer) {
                                             println!("ERROR [{}]: could not send a timed out notification: {}", peer, e);
                                         }
