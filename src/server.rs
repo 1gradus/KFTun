@@ -44,8 +44,8 @@ pub fn server(cfg: ServerCfg) -> ! {
         println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
 
         std::thread::scope(|s| {
-            s.spawn(|| listen(port1, target_addr, nonblocking, false));
-            s.spawn(|| listen(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking, true));
+            s.spawn(|| listen::<false>(port1, target_addr, nonblocking));
+            s.spawn(|| listen::< true>(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking));
         });
     }
 
@@ -64,7 +64,7 @@ const PREFIX: &[u8] = b"[PROXY] ";
 const OFFSET_TO_PORT: usize = 10;
 const OFFSET_TO_NAME: usize = 18;
 
-fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool, query: bool) {
+fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
     let mut buf = vec![0u8; BUF_SIZE];
     let mut peers: Map<SocketAddr, UdpSocket> = Map::new();
     let mut last_cleanup = Instant::now();
@@ -127,7 +127,7 @@ fn listen(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool, query: 
                     loop {
                         match server.recv(&mut buf) {
                             Ok(mut n) => {
-                                if query && matches!(&buf[..n], [0x80, 0, 0, 0, 0, ..]) {
+                                if QUERY && matches!(&buf[..n], [0x80, 0, 0, 0, 0, ..]) {
                                     buf_correct_port(&mut buf, local_port-1);
                                     buf_insert_name_prefix(&mut buf, &mut n);
                                 }
