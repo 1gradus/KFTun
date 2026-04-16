@@ -60,7 +60,7 @@ const BUF_SIZE: usize = 64*1024;
 const TIMEOUT_SECS: Duration = Duration::from_secs(10);
 const CLEANUP_PERIOD_SECS: Duration = Duration::from_secs(TIMEOUT_SECS.as_secs() / 2);
 
-const PREFIX: &[u8] = b"[PROXY] ";
+const SUFFIX: &[u8] = b"\x1B\xFF\xFF\xFF [PROXY]";
 const OFFSET_TO_PORT: usize = 10;
 const OFFSET_TO_NAME: usize = 18;
 
@@ -129,7 +129,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                             Ok(mut n) => {
                                 if QUERY && matches!(&buf[..n], [0x80, 0, 0, 0, 0, ..]) {
                                     buf_correct_port(&mut buf, local_port-1);
-                                    buf_insert_name_prefix(&mut buf, &mut n);
+                                    buf_insert_name_suffix(&mut buf, &mut n);
                                 }
                                 let data = &buf[..n];
                                 if let Err(e) = client.send_to(data, peer) {
@@ -182,13 +182,17 @@ fn buf_correct_port(buf: &mut [u8], port: u16) {
     buf[OFFSET_TO_PORT..][..2].copy_from_slice(&port.to_le_bytes());
 }
 
-fn buf_insert_name_prefix(buf: &mut [u8], len: &mut usize) {
-    if PREFIX.len() <= buf.len() - *len {
-        let s = OFFSET_TO_NAME+1;
-        let e = s+PREFIX.len();
+fn buf_insert_name_suffix(buf: &mut [u8], len: &mut usize) {
+    if SUFFIX.len() <= buf.len() - *len {
+        let Some(pos) = buf[OFFSET_TO_NAME..].iter().position(|&b| b == 0)
+        else {
+            return;
+        };
+        let s = OFFSET_TO_NAME + pos;
+        let e = s + SUFFIX.len();
         buf.copy_within(s..*len, e);
-        buf[s..e].copy_from_slice(PREFIX);
-        buf[OFFSET_TO_NAME] += PREFIX.len() as u8;
-        *len += PREFIX.len();
+        buf[s..e].copy_from_slice(SUFFIX);
+        buf[OFFSET_TO_NAME] += SUFFIX.len() as u8;
+        *len += SUFFIX.len();
     }
 }
