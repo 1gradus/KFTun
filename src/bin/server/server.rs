@@ -4,6 +4,7 @@ use std::io::{
 };
 use std::net::{
     SocketAddr,
+    ToSocketAddrs,
     UdpSocket,
 };
 use std::time::{
@@ -12,6 +13,9 @@ use std::time::{
 };
 use std::sync::mpsc::{
     channel,
+};
+use stunclient::{
+    StunClient,
 };
 
 type Map<K, V> = std::collections::HashMap<K, V>;
@@ -43,9 +47,33 @@ pub fn server(cfg: ServerCfg) -> ! {
         println!("Server proxy for {}", target_addr);
         println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
 
+        let game_port;
+
+        println!("Trying to discover public addresses..");
+        if let Some([port1_addr, port2_addr]) = discover_public_addresses(&port1, &port2) {
+            if port1_addr.ip() == port2_addr.ip() {
+                println!("Public address is {}:{{{}, {}}}", port1_addr.ip(), port1_addr.port(), port2_addr.port());
+                println!("Add to favorites {}:{}", port1_addr.ip(), port2_addr.port()-1);
+            }
+            /* Keep ports alive */
+            std::thread::spawn({
+                let port1 = port1.try_clone().unwrap();
+                let port2 = port2.try_clone().unwrap();
+                move || loop {
+                    std::thread::sleep(Duration::from_secs(10));
+                    _ = port1.send_to(&[], port2_addr);
+                    _ = port2.send_to(&[], port1_addr);
+                }
+            });
+            game_port = port1_addr.port();
+        } else {
+            println!("WARNING: could not discover public port addresses.");
+            game_port = listen_addr.port();
+        };
+
         std::thread::scope(|s| {
-            s.spawn(|| listen::<false>(port1, target_addr, nonblocking));
-            s.spawn(|| listen::< true>(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking));
+            s.spawn(|| listen::<false>(port1, 0, target_addr, nonblocking));
+            s.spawn(|| listen::< true>(port2, game_port, (target_addr.ip(), target_addr.port()+1).into(), nonblocking));
         });
     }
 
@@ -56,6 +84,36 @@ pub fn server(cfg: ServerCfg) -> ! {
     }
 }
 
+fn discover_public_addresses(port1: &UdpSocket, port2: &UdpSocket) -> Option<[SocketAddr; 2]> {
+    let stun_list = std::env::current_exe().unwrap().with_file_name("stun.txt");
+    let stun_list = std::fs::read_to_string(stun_list)
+      . unwrap()
+      . lines()
+      . map(str::trim)
+      . filter(|s| s.len() != 0)
+      . filter_map(|s| s.to_socket_addrs().ok().and_then(|mut addrs| addrs.find(|a| a.is_ipv4())))
+      . collect::<Vec<_>>();
+
+    let mut addr1 = None;
+    let mut addr2 = None;
+
+    for addr in stun_list {
+        let mut stun = StunClient::new(addr);
+        stun.set_timeout(Duration::from_secs_f32(1.5));
+        if addr1.is_none() {
+            addr1 = stun.query_external_address(&port1).ok();
+        }
+        if addr2.is_none() {
+            addr2 = stun.query_external_address(&port2).ok();
+        }
+        if let (Some(addr1), Some(addr2)) = (addr1, addr2) {
+            return Some([addr1, addr2]);
+        }
+    }
+
+    None
+}
+
 const BUF_SIZE: usize = 64*1024;
 const TIMEOUT_SECS: Duration = Duration::from_secs(10);
 const CLEANUP_PERIOD_SECS: Duration = Duration::from_secs(TIMEOUT_SECS.as_secs() / 2);
@@ -64,7 +122,12 @@ const SUFFIX: &[u8] = b"\x1B\xFF\xFF\xFF [PROXY]";
 const OFFSET_TO_PORT: usize = 10;
 const OFFSET_TO_NAME: usize = 18;
 
-fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
+fn listen<const QUERY: bool>(
+    client: UdpSocket,
+    server_game_port: u16,
+    server_addr: SocketAddr,
+    nonblocking: bool,
+) {
     let mut clients: Map<SocketAddr, UdpSocket> = Map::new();
     let mut last_cleanup = Instant::now();
     let (tx, rx) = channel();
@@ -84,6 +147,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
     let local_port = client.local_addr().unwrap().port();
     loop {
         match client.recv_from(&mut buf) {
+            Ok((0, ..)) => {}
             Ok((n, client_addr)) => 'l: {
                 let data = &buf[..n];
                 let send_data = |socket: &UdpSocket| {
@@ -130,7 +194,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                         match server.recv(&mut buf) {
                             Ok(mut n) => {
                                 if QUERY && matches!(&buf[..n], [0x80, 0, 0, 0, 0, ..]) {
-                                    buf_correct_port(&mut buf, local_port-1);
+                                    buf_correct_port(&mut buf, server_game_port);
                                     buf_insert_name_suffix(&mut buf, &mut n);
                                 }
                                 let data = &buf[..n];

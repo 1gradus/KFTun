@@ -41,6 +41,7 @@ mkdir %PackageDir%
 
 copy /Y %TargetDir%\*.exe %PackageDir%\
 copy /Y etc\%RunCmd% %PackageDir%\run.cmd
+copy /Y etc\stun.txt %PackageDir%\
 
 pushd package
     if not exist %PackageName%.zip (
