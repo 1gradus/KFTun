@@ -24,7 +24,11 @@ if "%1x" == "-devx" (
 ) else (
     set RunCmd=run.cmd
 )
-set PackageDir=.\package\%PackageName%
+if "%1x" == "-cleanx" (
+    rmdir /S /Q package
+    shift /1
+)
+set PackageDir=package\%PackageName%
 
 cargo build --release --offline %BuildOpts%
 
@@ -57,6 +61,5 @@ pushd package
 popd
 
 if "%1x" == "-runx" (
-    echo ----------------------------------------
-    call %PackageDir%\run.cmd
+    call %PackageDir%\run.cmd %2 %3 %4 %5 %6 %7 %8 %9
 )
