@@ -183,6 +183,12 @@ fn buf_correct_port(buf: &mut [u8], port: u16) {
 
 fn buf_insert_name_suffix(buf: &mut [u8], len: &mut usize) {
     if SUFFIX.len() <= buf.len() - *len {
+        /*
+            TODO: Substitute part of the name when there's no space to append.
+        */
+        if SUFFIX.len() < 256 - buf[OFFSET_TO_NAME] as usize {
+            return;
+        }
         let Some(pos) = buf[OFFSET_TO_NAME..].iter().position(|&b| b == 0)
         else {
             return;
@@ -191,9 +197,6 @@ fn buf_insert_name_suffix(buf: &mut [u8], len: &mut usize) {
         let e = s + SUFFIX.len();
         buf.copy_within(s..*len, e);
         buf[s..e].copy_from_slice(SUFFIX);
-        /*
-            TODO: Addition may overflow.
-        */
         buf[OFFSET_TO_NAME] += SUFFIX.len() as u8;
         *len += SUFFIX.len();
     }
