@@ -17,6 +17,13 @@ use std::sync::mpsc::{
 use stunclient::{
     StunClient,
 };
+use easy_upnp::{
+    add_ports,
+    UpnpConfig,
+    PortMappingProtocol::{
+        UDP,
+    },
+};
 
 type Map<K, V> = std::collections::HashMap<K, V>;
 
@@ -46,6 +53,28 @@ pub fn server(cfg: ServerCfg) -> ! {
     if let (Some(port1), Some(port2)) = (port1, port2) {
         println!("Server proxy for {}", target_addr);
         println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
+
+        println!("Trying to UPnP the ports..");
+        for status in add_ports([
+            UpnpConfig {
+                address: None,
+                port: port1.local_addr().unwrap().port(),
+                protocol: UDP,
+                duration: 60*3,
+                comment: "KillingFloor".into(),
+            },
+            UpnpConfig {
+                address: None,
+                port: port2.local_addr().unwrap().port(),
+                protocol: UDP,
+                duration: 60*3,
+                comment: "KillingFloor".into(),
+            },
+        ]) {
+            if let Err(e) = status {
+                println!("WARNING: could not UPnP a port: {}", e);
+            }
+        }
 
         let game_port;
 
