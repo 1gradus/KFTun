@@ -52,6 +52,8 @@ pub fn server(cfg: ServerCfg) -> ! {
     if let (Some(port1), Some(port2)) = (port1, port2) {
         println!("Server proxy for {}", target_addr);
         println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
+        println!("Timeout: {}s", params.timeout_secs.as_secs());
+        println!("Nonblocking: {}", if nonblocking {"True"} else {"False"});
 
         std::thread::scope(|s| {
             s.spawn(|| listen::<false>(port1, target_addr, params));
