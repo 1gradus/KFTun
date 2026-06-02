@@ -23,6 +23,8 @@ pub struct ServerCfg {
     pub nonblocking: bool,
 }
 
+const ENV_TIMEOUT_SECS: &str = "KFTUN_TIMEOUT_SECS";
+
 pub fn server(cfg: ServerCfg) -> ! {
     // println!("cfg = {:#?}", cfg);
 
@@ -31,6 +33,14 @@ pub fn server(cfg: ServerCfg) -> ! {
         target_addr,
         nonblocking,
     } = cfg;
+
+    let timeout_secs = get_timeout_secs();
+    let cleanup_period_secs = get_cleanup_period_secs(timeout_secs);
+    let params = ListenParams {
+        timeout_secs,
+        cleanup_period_secs,
+        nonblocking,
+    };
 
     let port1 = UdpSocket::bind(listen_addr).map_err(|e| {
         println!("ERROR: could not open a proxy<->client port {}: {}", listen_addr.port(), e);
@@ -44,8 +54,8 @@ pub fn server(cfg: ServerCfg) -> ! {
         println!("Listening on {}:{{{}, {}}}", listen_addr.ip(), listen_addr.port(), listen_addr.port()+1);
 
         std::thread::scope(|s| {
-            s.spawn(|| listen::<false>(port1, target_addr, nonblocking));
-            s.spawn(|| listen::< true>(port2, (target_addr.ip(), target_addr.port()+1).into(), nonblocking));
+            s.spawn(|| listen::<false>(port1, target_addr, params));
+            s.spawn(|| listen::< true>(port2, (target_addr.ip(), target_addr.port()+1).into(), params));
         });
     }
 
@@ -56,18 +66,47 @@ pub fn server(cfg: ServerCfg) -> ! {
     }
 }
 
+fn get_timeout_secs() -> Duration {
+    /* TODO: report invalid value */
+    let Some(x) = std::env::var(ENV_TIMEOUT_SECS).ok()
+    else {
+        return DEFAULT_TIMEOUT_SECS;
+    };
+    /* TODO: report parse error */
+    let Some(x) = x.parse::<u64>().ok()
+    else {
+        return DEFAULT_TIMEOUT_SECS;
+    };
+    Duration::from_secs(x)
+}
+
+fn get_cleanup_period_secs(timeout: Duration) -> Duration {
+    Duration::from_secs(timeout.as_secs() / 2)
+}
+
+#[derive(Copy, Clone)]
+struct ListenParams {
+    timeout_secs: Duration,
+    cleanup_period_secs: Duration,
+    nonblocking: bool,
+}
+
 const BUF_SIZE: usize = 64*1024;
-const TIMEOUT_SECS: Duration = Duration::from_secs(10);
-const CLEANUP_PERIOD_SECS: Duration = Duration::from_secs(TIMEOUT_SECS.as_secs() / 2);
+const DEFAULT_TIMEOUT_SECS: Duration = Duration::from_secs(10);
 
 const SUFFIX: &[u8] = b"\x1B\xFF\xFF\xFF [PROXY]";
 const OFFSET_TO_PORT: usize = 10;
 const OFFSET_TO_NAME: usize = 18;
 
-fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonblocking: bool) {
+fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, params: ListenParams) {
     let mut clients: Map<SocketAddr, UdpSocket> = Map::new();
     let mut last_cleanup = Instant::now();
     let (tx, rx) = channel();
+    let ListenParams {
+        timeout_secs,
+        cleanup_period_secs,
+        nonblocking,
+    } = params;
 
     /*
         TODO: spin_loop()?
@@ -78,7 +117,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
         result of setting this option. For example Unix typically returns an error of the
         kind WouldBlock, but Windows may return TimedOut.
     */
-    client.set_read_timeout(Some(CLEANUP_PERIOD_SECS)).unwrap();
+    client.set_read_timeout(Some(cleanup_period_secs)).unwrap();
 
     let mut buf = vec![0u8; BUF_SIZE];
     let local_port = client.local_addr().unwrap().port();
@@ -111,7 +150,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
 
                 server.connect(server_addr).unwrap();
                 server.set_nonblocking(nonblocking).unwrap();
-                server.set_read_timeout(Some(TIMEOUT_SECS)).unwrap();
+                server.set_read_timeout(Some(timeout_secs)).unwrap();
 
                 /*
                     TODO: Retry on failure?
@@ -173,7 +212,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
 
         let time = Instant::now();
 
-        if time.duration_since(last_cleanup) >= CLEANUP_PERIOD_SECS {
+        if time.duration_since(last_cleanup) >= cleanup_period_secs {
             for client_addr in rx.try_iter() {
                 println!("TIMEDOUT {}", client_addr);
                 clients.remove(&client_addr);
