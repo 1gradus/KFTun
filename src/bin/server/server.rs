@@ -186,7 +186,7 @@ fn buf_insert_name_suffix(buf: &mut [u8], len: &mut usize) {
         /*
             TODO: Substitute part of the name when there's no space to append.
         */
-        if SUFFIX.len() < 256 - buf[OFFSET_TO_NAME] as usize {
+        if SUFFIX.len() >= 255 - buf[OFFSET_TO_NAME] as usize {
             return;
         }
         let Some(pos) = buf[OFFSET_TO_NAME..].iter().position(|&b| b == 0)
