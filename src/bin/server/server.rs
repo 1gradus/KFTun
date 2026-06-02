@@ -124,6 +124,7 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
 
                 let client = client.try_clone().unwrap();
                 let tx = tx.clone();
+                let mut conn_reset_err = false;
                 std::thread::spawn(move || {
                     let mut buf = vec![0u8; BUF_SIZE];
                     loop {
@@ -137,8 +138,11 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                                 if let Err(e) = client.send_to(data, client_addr) {
                                     println!("ERROR [{}]: proxy->client send: {}", client_addr, e);
                                 }
+                                conn_reset_err = false;
                             }
                             Err(e) => {
+                                let was_conn_reset_err = conn_reset_err;
+                                conn_reset_err = e.kind() == io::ErrorKind::ConnectionReset;
                                 if e.kind() != io::ErrorKind::WouldBlock {
                                     if e.kind() == io::ErrorKind::TimedOut {
                                         if let Err(e) = tx.send(client_addr) {
@@ -146,7 +150,9 @@ fn listen<const QUERY: bool>(client: UdpSocket, server_addr: SocketAddr, nonbloc
                                         }
                                         break;
                                     }
-                                    println!("ERROR [{}]: proxy<-server recv: {}", client_addr, e);
+                                    if !conn_reset_err || !was_conn_reset_err {
+                                        println!("ERROR [{}]: proxy<-server recv: {}", client_addr, e);
+                                    }
                                 }
                             }
                         }
