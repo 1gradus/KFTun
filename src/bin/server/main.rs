@@ -1,6 +1,7 @@
 
 use std::net::{
     SocketAddr,
+    ToSocketAddrs,
 };
 use std::process::{
     ExitCode,
@@ -69,7 +70,7 @@ fn command_line() -> Result<CommandLine, ExitCode> {
                 error = true;
             }).into();
         } else if target_addr.is_none() {
-            target_addr = arg.parse().map_err(|_| {
+            target_addr = parse_addr(&arg).map_err(|_| {
                 println!("ERROR: '{}' is not an acceptable target address", arg);
                 error = true;
             }).into();
@@ -98,4 +99,8 @@ fn command_line() -> Result<CommandLine, ExitCode> {
         ],
         nonblocking,
     })
+}
+
+fn parse_addr(addr: &str) -> std::io::Result<SocketAddr> {
+    Ok(addr.to_socket_addrs()?.next().unwrap())
 }
