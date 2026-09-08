@@ -1,5 +1,6 @@
-[package]
-name = "KFTun"
-version = "0.0.0"
-edition = "2024"
-publish = false
+[workspace]
+resolver = "3"
+members = [
+    "proxy",
+    "tunnel",
+]
