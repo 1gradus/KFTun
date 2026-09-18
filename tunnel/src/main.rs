@@ -38,6 +38,7 @@ mod prelude {
         },
         os::windows::io::{
             AsRawSocket,
+            RawSocket,
         },
     };
     pub(crate) use socket2::{
@@ -50,34 +51,6 @@ mod prelude {
     };
 
     pub(crate) type Result<T = (), E = std::io::Error> = ::core::result::Result<T, E>;
-
-    #[link(name = "ws2_32", kind = "raw-dylib")]
-    unsafe extern "system"
-    {
-        safe fn ioctlsocket(
-            socket: std::os::windows::raw::SOCKET,
-            cmd: u32,
-            arg: *mut u32,
-        ) -> i32;
-    }
-
-    const SIO_UDP_CONNRESET: u32 = 2550136844;
-    const SIO_UDP_NETRESET : u32 = 2550136847;
-
-    pub(crate) fn set_report_reset(socket: &UdpSocket, flag: bool) -> Result
-    {
-        // Controls whether PORT_UNREACHABLE messages are reported.
-        match ioctlsocket(socket.as_raw_socket(), SIO_UDP_CONNRESET, &mut (flag as u32)) {
-            0 => {}
-            e => return Err(std::io::Error::from_raw_os_error(e)),
-        }
-        // Controls whether NET_UNREACHABLE (TTL expired) messages are reported.
-        match ioctlsocket(socket.as_raw_socket(), SIO_UDP_NETRESET, &mut (flag as u32)) {
-            0 => {}
-            e => return Err(std::io::Error::from_raw_os_error(e)),
-        }
-        Ok(())
-    }
 }
 
 #[macro_use]
