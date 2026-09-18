@@ -85,8 +85,8 @@ mod macros;
 
 mod protocol;
 
-mod server_side;
-mod client_side;
+mod udp;
+mod tcp;
 
 fn main()
 {
@@ -131,12 +131,12 @@ fn main()
 
     match side {
         Side::Server => match protocol {
-            Protocol::Udp => server_side::udp::main(port, client_addr.unwrap()),
-            Protocol::Tcp => server_side::tcp::main(port, client_addr.unwrap()),
+            Protocol::Udp => udp::server_side::main(port, client_addr.unwrap()),
+            Protocol::Tcp => tcp::server_side::main(port, client_addr.unwrap()),
         },
         Side::Client => match protocol {
-            Protocol::Udp => client_side::udp::main(port, server_port),
-            Protocol::Tcp => client_side::tcp::main(port, server_port),
+            Protocol::Udp => udp::client_side::main(port, server_port),
+            Protocol::Tcp => tcp::client_side::main(port, server_port),
         },
     }
 }

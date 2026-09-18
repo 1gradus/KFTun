@@ -1,5 +1,6 @@
 
 use crate::prelude::*;
+use super::prelude::*;
 
 pub fn main(client_port: u16, server_port: Option<u16>)
 {
@@ -38,16 +39,19 @@ pub fn main(client_port: u16, server_port: Option<u16>)
     println!("Client-Side Port: {}", client_port);
     println!("Server-Side Addr: {}", server.local_addr().unwrap());
 
+    let (log, logrx) = channel();
     let c = Listen {
         server_addr: None.into(),
         server,
         client,
         client_ports: Map::new().into(),
+        log,
     };
 
     std::thread::scope(|s| {
         s.spawn(|| listen_client(&c));
         s.spawn(|| listen_server(&c));
+        s.spawn(|| listen_log(logrx));
     });
 }
 
@@ -56,6 +60,7 @@ struct Listen {
     server: UdpSocket,
     client: UdpSocket,
     client_ports: RwLock<Map<u16, IpAddr>>,
+    log: Sender<LogMessage>,
 }
 
 fn listen_client(c: &Listen)
@@ -108,16 +113,16 @@ fn listen_server(c: &Listen)
         match msg
         {
             Message::Announce => {
-                println!("[ANNC] {}", peer_addr);
+                _ = c.log.send(LogMessage::Announce(peer_addr));
                 c.server.send_to(msg_announce(buf), peer_addr).unwrap();
                 c.server_addr.write().map(|mut addr| *addr = peer_addr.into()).unwrap();
             }
             Message::Echo => {
-                println!("[ECHO] {}", peer_addr);
+                _ = c.log.send(LogMessage::Echo(peer_addr));
                 c.server.send_to(msg_echo(buf), peer_addr).unwrap();
             }
             Message::Data (port, data) => {
-                println!("[DATA] {} bytes from {} [{}]", data.len(), peer_addr, port);
+                _ = c.log.send(LogMessage::Data(data.len(), peer_addr, port));
 
                 if let Some(&ip) = c.client_ports.read().unwrap().get(&port)
                 {

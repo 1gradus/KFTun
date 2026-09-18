@@ -1,5 +1,6 @@
 
 use crate::prelude::*;
+use super::prelude::*;
 
 pub fn main(server_port: u16, client_addr: SocketAddr)
 {
@@ -20,16 +21,19 @@ pub fn main(server_port: u16, client_addr: SocketAddr)
     println!("Server Addr: {}", server_addr);
     println!("Client Addr: {}", client_addr);
 
+    let (log, logrx) = channel();
     let c = Listen {
         server_addr,
         server_ports: Map::new().into(),
         client_addr,
         client,
+        log,
     };
 
     std::thread::scope(|s| {
         s.spawn(|| listen_client(&c));
         s.spawn(|| listen_server(&c));
+        s.spawn(|| listen_log(logrx));
     });
 }
 
@@ -38,6 +42,7 @@ struct Listen {
     server_ports: RwLock<Map<u16, UdpSocket>>,
     client_addr: SocketAddr,
     client: UdpSocket,
+    log: Sender<LogMessage>,
 }
 
 fn listen_server(c: &Listen)
@@ -115,13 +120,13 @@ fn listen_client(c: &Listen)
         match msg
         {
             Message::Announce => {
-                println!("[ANNC] {}", peer_addr);
+                _ = c.log.send(LogMessage::Announce(peer_addr));
             }
             Message::Echo => {
-                println!("[ECHO] {}", peer_addr);
+                _ = c.log.send(LogMessage::Echo(peer_addr));
             }
             Message::Data (port, data) => 'l: {
-                println!("[DATA] {} bytes from {} [{}]", data.len(), peer_addr, port);
+                _ = c.log.send(LogMessage::Data(data.len(), peer_addr, port));
 
                 let mut map = c.server_ports.write().unwrap();
                 let socket = match map.entry(port) {
