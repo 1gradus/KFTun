@@ -16,8 +16,8 @@ pub fn main(server_port: u16, client_addr: SocketAddr)
     };
 
     std::thread::scope(|s| {
-        s.spawn(|| stream_client(&c));
-        s.spawn(|| stream_server(&c));
+        s.spawn(|| listen_client(&c));
+        s.spawn(|| listen_server(&c));
     });
 }
 
@@ -28,7 +28,7 @@ struct Listen {
     client_stream: RwLock<Option<TcpStream>>,
 }
 
-fn stream_server(c: &Listen)
+fn listen_server(c: &Listen)
 {
     let ref mut buf = vec![0; 65536];
 
@@ -74,7 +74,7 @@ fn stream_server(c: &Listen)
     }
 }
 
-fn stream_client(c: &Listen)
+fn listen_client(c: &Listen)
 {
     let ref mut buf = vec![0; 65536];
 
