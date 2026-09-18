@@ -18,6 +18,8 @@ mod prelude {
             IpAddr,
             SocketAddr,
             UdpSocket,
+            TcpListener,
+            TcpStream,
         },
         time::{
             Duration,
@@ -26,11 +28,25 @@ mod prelude {
             RwLock,
         },
         io::{
-            ErrorKind,
+            ErrorKind::{
+                ConnectionRefused,
+                ConnectionReset,
+                self,
+            },
+            Read,
+            Write,
         },
         os::windows::io::{
             AsRawSocket,
         },
+    };
+    pub(crate) use socket2::{
+        Domain,
+        Type,
+        Protocol,
+        Socket,
+        SockRef,
+        TcpKeepalive,
     };
 
     pub(crate) type Result<T = (), E = std::io::Error> = ::core::result::Result<T, E>;
@@ -50,10 +66,12 @@ mod prelude {
 
     pub(crate) fn set_report_reset(socket: &UdpSocket, flag: bool) -> Result
     {
+        // Controls whether PORT_UNREACHABLE messages are reported.
         match ioctlsocket(socket.as_raw_socket(), SIO_UDP_CONNRESET, &mut (flag as u32)) {
             0 => {}
             e => return Err(std::io::Error::from_raw_os_error(e)),
         }
+        // Controls whether NET_UNREACHABLE (TTL expired) messages are reported.
         match ioctlsocket(socket.as_raw_socket(), SIO_UDP_NETRESET, &mut (flag as u32)) {
             0 => {}
             e => return Err(std::io::Error::from_raw_os_error(e)),
@@ -77,6 +95,7 @@ fn main()
         port,
         client_addr,
         server_port,
+        protocol,
     }) = command_line()
     else {
         return;
@@ -111,15 +130,35 @@ fn main()
     };
 
     match side {
-        Side::Server => server_side::main(port, client_addr.unwrap()),
-        Side::Client => client_side::main(port, server_port),
+        Side::Server => match protocol {
+            Protocol::Udp => server_side::udp::main(port, client_addr.unwrap()),
+            Protocol::Tcp => server_side::tcp::main(port, client_addr.unwrap()),
+        },
+        Side::Client => match protocol {
+            Protocol::Udp => client_side::udp::main(port, server_port),
+            Protocol::Tcp => client_side::tcp::main(port, server_port),
+        },
     }
 }
 
 const HELP_MESSAGE: &str = concat![
-    "USAGE:\n",
-    "    tun server <server-port> <client-addr>\n",
-    "    tun client <client-port> [server-port]",
+    "USAGE:\r\n",
+    "    tun server [OPTIONS] <server-port> <client-addr>\r\n",
+    "    tun client [OPTIONS] <client-port> [server-port]\r\n",
+    "\r\n",
+    "OPTIONS:\r\n",
+    "    -udp    Use UDP (Default). Overwrites -tcp.\r\n",
+    "    -tcp    Use TCP. Overwrites -udp.\r\n",
+    "\r\n",
+    "SERVER PARAMETERS:\r\n",
+    "    <server-port>    Port of the server application which will receive the data\r\n",
+    "                     coming from the client.\r\n",
+    "    <client-addr>    Address of the the client-side tunnel.\r\n",
+    "\r\n",
+    "CLIENT PARAMETERS:\r\n",
+    "    <client-port>    Port which will receive the data coming from the client-side\r\n",
+    "                     applications.\r\n",
+    "    [server-port]    Port which will receive the data coming from the server."
 ];
 
 struct CommandLine {
@@ -127,12 +166,18 @@ struct CommandLine {
     port: String,
     client_addr: Option<String>,
     server_port: Option<String>,
+    protocol: Protocol,
 }
 
 #[derive(Copy, Clone)]
 enum Side {
     Server,
     Client,
+}
+
+enum Protocol {
+    Udp,
+    Tcp,
 }
 
 fn command_line() -> Option<CommandLine>
@@ -146,12 +191,15 @@ fn command_line() -> Option<CommandLine>
     let mut port = None;
     let mut client_addr = None;
     let mut server_port = None;
+    let mut protocol = Protocol::Udp;
 
     while let Some(arg) = args.next()
     {
         match arg.as_str()
         {
             "-h" | "--help" => help = true,
+            "-tcp" | "--tcp" => protocol = Protocol::Tcp,
+            "-udp" | "--udp" => protocol = Protocol::Udp,
             "server" => side = Side::Server.into(),
             "client" => side = Side::Client.into(),
             _ if side.is_none() => {
@@ -188,5 +236,6 @@ fn command_line() -> Option<CommandLine>
         port: port.unwrap(),
         client_addr,
         server_port,
+        protocol,
     })
 }
