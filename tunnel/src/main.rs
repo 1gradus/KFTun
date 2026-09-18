@@ -51,7 +51,7 @@ mod prelude {
 
     pub(crate) type Result<T = (), E = std::io::Error> = ::core::result::Result<T, E>;
 
-    #[link(name = "ws2_32.dll", kind = "raw-dylib")]
+    #[link(name = "ws2_32", kind = "raw-dylib")]
     unsafe extern "system"
     {
         safe fn ioctlsocket(
